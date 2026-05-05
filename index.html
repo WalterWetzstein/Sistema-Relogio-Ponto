@@ -1,61 +1,138 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Sistema de Ponto</title>
+  <meta charset="UTF-8">
+  <title>Sistema de Cálculo de Ponto</title>
+
+  <!-- Biblioteca para ler Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+  <style>
+    body { font-family: Arial; background:#f4f6f8; padding:30px; }
+    .box { background:white; padding:25px; border-radius:10px; max-width:900px; margin:auto; }
+    h1 { margin-top:0; }
+    input, button { padding:10px; margin:5px 0; }
+    button { background:#0078d4; color:white; border:0; cursor:pointer; }
+    table { border-collapse:collapse; width:100%; margin-top:20px; }
+    th, td { border:1px solid #ddd; padding:8px; text-align:center; }
+    th { background:#0078d4; color:white; }
+  </style>
 </head>
+
 <body>
+<div class="box">
 
-<h2>Sistema de Cálculo de Ponto</h2>
+<h1>Sistema de Cálculo de Ponto</h1>
+<p><b>Horário:</b> 08:00–12:00 e 13:30–18:00</p>
 
-<input type="file" id="arquivo"><br><br>
+<input type="file" id="arquivo"><br>
 
-Valor por hora: <input type="number" id="valorHora" value="10"><br><br>
+Valor por hora:
+<input type="number" id="valorHora" value="20"><br>
 
-<button onclick="calcular()">Calcular</button>
+<button onclick="ler()">Calcular</button>
 
-<h3 id="resultado"></h3>
+<div id="resultado"></div>
+
+</div>
 
 <script>
-function calcular() {
-    const file = document.getElementById("arquivo").files[0];
-    const valorHora = parseFloat(document.getElementById("valorHora").value);
 
-    if (!file) {
-        alert("Escolha um arquivo CSV");
-        return;
-    }
+let dadosFinal = [];
 
-    const reader = new FileReader();
+function tempoMin(t){
+  if(!t) return null;
+  let p = String(t).split(":");
+  if(p.length<2) return null;
+  return parseInt(p[0])*60 + parseInt(p[1]);
+}
 
-    reader.onload = function(e) {
-        const texto = e.target.result;
-        const linhas = texto.split("\n");
+function calcularDia(txt){
+  if(!txt) return 0;
 
-        let totalHoras = 0;
+  let horas = txt.split(/\s+/)
+    .filter(x => x.match(/\d{1,2}:\d{2}/));
 
-        for (let i = 1; i < linhas.length; i++) {
-            const colunas = linhas[i].split(",");
+  let total = 0;
 
-            let entrada = new Date("1970-01-01 " + colunas[2]);
-            let saida = new Date("1970-01-01 " + colunas[3]);
+  for(let i=0;i+1<horas.length;i+=2){
+    let e = tempoMin(horas[i]);
+    let s = tempoMin(horas[i+1]);
 
-            let horas = (saida - entrada) / (1000 * 60 * 60);
+    if(e==null || s==null) continue;
 
-            if (horas < 0) horas += 24;
+    if(s<e) s += 1440;
 
-            totalHoras += horas;
+    total += (s-e);
+  }
+
+  return total/60;
+}
+
+function ler(){
+
+  const file = document.getElementById("arquivo").files[0];
+  const valorHora = parseFloat(document.getElementById("valorHora").value);
+
+  if(!file){
+    alert("Escolha um arquivo");
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = function(e){
+
+    const data = new Uint8Array(e.target.result);
+    const wb = XLSX.read(data, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const linhas = XLSX.utils.sheet_to_json(ws, {header:1});
+
+    let resultadoHTML = "<table><tr><th>Funcionário</th><th>Horas</th><th>Total</th></tr>";
+
+    for(let i=0;i<linhas.length;i++){
+
+      let linha = linhas[i].join(" ").toLowerCase();
+
+      if(linha.includes("idusuário") || linha.includes("idusuario")){
+
+        let nome = "Funcionário";
+
+        for(let j=0;j<linhas[i].length;j++){
+          if(String(linhas[i][j]).toLowerCase().includes("nome")){
+            nome = linhas[i][j+1];
+          }
         }
 
-        let total = totalHoras * valorHora;
+        let dias = linhas[i+2];
+        let totalHoras = 0;
 
-        document.getElementById("resultado").innerText =
-            "Horas: " + totalHoras.toFixed(2) +
-            " | Total: R$ " + total.toFixed(2);
-    };
+        for(let d=0; d<dias.length; d++){
+          totalHoras += calcularDia(dias[d]);
+        }
 
-    reader.readAsText(file);
+        if(totalHoras > 0){
+          let total = totalHoras * valorHora;
+
+          resultadoHTML += `<tr>
+            <td>${nome}</td>
+            <td>${totalHoras.toFixed(2)}</td>
+            <td>R$ ${total.toFixed(2)}</td>
+          </tr>`;
+        }
+
+      }
+    }
+
+    resultadoHTML += "</table>";
+    document.getElementById("resultado").innerHTML = resultadoHTML;
+
+  };
+
+  reader.readAsArrayBuffer(file);
 }
+
 </script>
 
 </body>
-</html>     
+</html>
