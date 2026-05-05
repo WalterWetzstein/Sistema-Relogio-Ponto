@@ -2,141 +2,342 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Sistema de Cálculo de Ponto</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Cálculo de Ponto - Tecnobrasão</title>
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
 <style>
-body { font-family: Arial; background:#f4f6f8; padding:30px; }
-.box { background:white; padding:25px; border-radius:10px; max-width:900px; margin:auto; }
-h1 { margin-top:0; }
-input, button { padding:10px; margin:5px 0; }
-button { background:#0078d4; color:white; border:0; cursor:pointer; }
-table { border-collapse:collapse; width:100%; margin-top:20px; }
-th, td { border:1px solid #ddd; padding:8px; text-align:center; }
-th { background:#0078d4; color:white; }
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #eef1f5;
+    color: #222;
+  }
+
+  .topo {
+    background: white;
+    border-bottom: 1px solid #ddd;
+    padding: 18px 30px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .logo {
+    max-width: 360px;
+    width: 100%;
+    height: auto;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 35px auto;
+    padding: 0 20px;
+  }
+
+  .card {
+    background: white;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+  }
+
+  h1 {
+    margin-top: 0;
+    font-size: 34px;
+    color: #111;
+  }
+
+  .subtitulo {
+    color: #555;
+    margin-bottom: 25px;
+  }
+
+  .info-horario {
+    background: #f5f7fa;
+    border-left: 5px solid #222;
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    font-size: 17px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 25px;
+  }
+
+  label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+
+  input[type="file"],
+  input[type="number"] {
+    width: 100%;
+    padding: 13px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 16px;
+    background: white;
+  }
+
+  button {
+    background: #111;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 14px 26px;
+    font-size: 16px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  button:hover {
+    background: #333;
+  }
+
+  .mensagem {
+    margin-top: 20px;
+    font-weight: bold;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 28px;
+    overflow: hidden;
+    border-radius: 10px;
+    background: white;
+  }
+
+  th {
+    background: #111;
+    color: white;
+    padding: 14px;
+    font-size: 16px;
+  }
+
+  td {
+    border-bottom: 1px solid #e5e5e5;
+    padding: 14px;
+    text-align: center;
+    font-size: 16px;
+  }
+
+  tr:hover td {
+    background: #f7f7f7;
+  }
+
+  .total {
+    font-weight: bold;
+    color: #0a7a2f;
+  }
+
+  .rodape {
+    text-align: center;
+    color: #777;
+    margin-top: 25px;
+    font-size: 14px;
+  }
+
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+    .topo { padding: 15px; }
+    .logo { max-width: 280px; }
+  }
 </style>
 </head>
 
 <body>
-<div class="box">
 
-<h1>Sistema de Cálculo de Ponto</h1>
-<p><b>Horário:</b> 08:00–12:00 e 13:30–18:00</p>
+<header class="topo">
+  <img src="logo.png" alt="Tecnobrasão" class="logo">
+</header>
 
-<input type="file" id="arquivo"><br>
+<main class="container">
+  <section class="card">
+    <h1>Sistema de Cálculo de Ponto</h1>
+    <p class="subtitulo">Envie a planilha do relógio de ponto e calcule automaticamente as horas e o valor a pagar.</p>
 
-Valor por hora:
-<input type="number" id="valorHora" value="20"><br>
+    <div class="info-horario">
+      <b>Horário normal:</b> 08:00–12:00 e 13:30–18:00
+    </div>
 
-<button onclick="ler()">Calcular</button>
+    <div class="grid">
+      <div>
+        <label>Planilha do ponto</label>
+        <input type="file" id="arquivo" accept=".xls,.xlsx,.csv">
+      </div>
 
-<div id="resultado"></div>
+      <div>
+        <label>Valor por hora (R$)</label>
+        <input type="number" id="valorHora" value="20" step="0.01">
+      </div>
+    </div>
 
-</div>
+    <button onclick="ler()">Calcular pagamento</button>
+
+    <div id="mensagem" class="mensagem"></div>
+    <div id="resultado"></div>
+  </section>
+
+  <div class="rodape">Tecnobrasão • Sistema interno de cálculo de ponto</div>
+</main>
 
 <script>
-
 function tempoMin(t){
   if(!t) return null;
   let p = String(t).split(":");
-  if(p.length<2) return null;
-  return parseInt(p[0])*60 + parseInt(p[1]);
+  if(p.length < 2) return null;
+  let h = parseInt(p[0]);
+  let m = parseInt(p[1]);
+  if(isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
 }
 
 function calcularDia(txt){
   if(!txt) return 0;
 
-  let horas = txt.split(/\s+/)
+  let horas = String(txt)
+    .split(/\s+/)
     .filter(x => x.match(/\d{1,2}:\d{2}/));
 
   let total = 0;
 
-  for(let i=0;i+1<horas.length;i+=2){
+  for(let i = 0; i + 1 < horas.length; i += 2){
     let e = tempoMin(horas[i]);
-    let s = tempoMin(horas[i+1]);
+    let s = tempoMin(horas[i + 1]);
 
-    if(e==null || s==null) continue;
+    if(e == null || s == null) continue;
+    if(s < e) s += 1440;
 
-    if(s<e) s += 1440;
-
-    total += (s-e);
+    total += (s - e);
   }
 
-  return total/60;
+  return total / 60;
 }
 
-// 🔥 NOVO: converter para horas e minutos
 function formatarHorasMinutos(horasDecimal){
   let horas = Math.floor(horasDecimal);
   let minutos = Math.round((horasDecimal - horas) * 60);
 
+  if(minutos === 60){
+    horas += 1;
+    minutos = 0;
+  }
+
   return `${horas}h ${minutos}min`;
 }
 
-function ler(){
+function formatarDinheiro(valor){
+  return valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+}
 
+function ler(){
   const file = document.getElementById("arquivo").files[0];
   const valorHora = parseFloat(document.getElementById("valorHora").value);
+  const mensagem = document.getElementById("mensagem");
+  const resultado = document.getElementById("resultado");
+
+  mensagem.innerHTML = "";
+  resultado.innerHTML = "";
 
   if(!file){
-    alert("Escolha um arquivo");
+    mensagem.innerHTML = "Escolha uma planilha primeiro.";
+    return;
+  }
+
+  if(isNaN(valorHora) || valorHora <= 0){
+    mensagem.innerHTML = "Digite um valor por hora válido.";
     return;
   }
 
   const reader = new FileReader();
 
   reader.onload = function(e){
-
     const data = new Uint8Array(e.target.result);
     const wb = XLSX.read(data, {type:'array'});
     const ws = wb.Sheets[wb.SheetNames[0]];
-    const linhas = XLSX.utils.sheet_to_json(ws, {header:1});
+    const linhas = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
 
-    let html = "<table><tr><th>Funcionário</th><th>Horas</th><th>Total</th></tr>";
+    let html = `
+      <table>
+        <tr>
+          <th>Funcionário</th>
+          <th>Horas trabalhadas</th>
+          <th>Total a pagar</th>
+        </tr>
+    `;
 
-    for(let i=0;i<linhas.length;i++){
+    let encontrou = false;
+    let totalGeral = 0;
 
-      let linha = linhas[i].join(" ").toLowerCase();
+    for(let i = 0; i < linhas.length; i++){
+      let linhaTexto = linhas[i].join(" ").toLowerCase();
 
-      if(linha.includes("idusuário") || linha.includes("idusuario")){
-
+      if(linhaTexto.includes("idusuário") || linhaTexto.includes("idusuario")){
         let nome = "Funcionário";
 
-        for(let j=0;j<linhas[i].length;j++){
+        for(let j = 0; j < linhas[i].length; j++){
           if(String(linhas[i][j]).toLowerCase().includes("nome")){
-            nome = linhas[i][j+1];
+            nome = linhas[i][j + 1] || "Funcionário";
           }
         }
 
-        let dias = linhas[i+2];
+        let dias = linhas[i + 2] || [];
         let totalHoras = 0;
 
-        for(let d=0; d<dias.length; d++){
+        for(let d = 0; d < dias.length; d++){
           totalHoras += calcularDia(dias[d]);
         }
 
         if(totalHoras > 0){
+          encontrou = true;
           let total = totalHoras * valorHora;
+          totalGeral += total;
 
-          html += `<tr>
-            <td>${nome}</td>
-            <td>${formatarHorasMinutos(totalHoras)}</td>
-            <td>R$ ${total.toFixed(2)}</td>
-          </tr>`;
+          html += `
+            <tr>
+              <td>${nome}</td>
+              <td>${formatarHorasMinutos(totalHoras)}</td>
+              <td class="total">${formatarDinheiro(total)}</td>
+            </tr>
+          `;
         }
-
       }
     }
 
-    html += "</table>";
-    document.getElementById("resultado").innerHTML = html;
+    html += `
+      <tr>
+        <th colspan="2">Total geral</th>
+        <th>${formatarDinheiro(totalGeral)}</th>
+      </tr>
+    `;
 
+    html += "</table>";
+
+    if(!encontrou){
+      mensagem.innerHTML = "Não encontrei registros válidos nessa planilha.";
+      return;
+    }
+
+    mensagem.innerHTML = "Cálculo realizado com sucesso.";
+    resultado.innerHTML = html;
   };
 
   reader.readAsArrayBuffer(file);
 }
-
 </script>
 
 </body>
