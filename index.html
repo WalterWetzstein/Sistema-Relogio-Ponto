@@ -1,22 +1,21 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Sistema de Cálculo de Ponto</title>
+<meta charset="UTF-8">
+<title>Sistema de Cálculo de Ponto</title>
 
-  <!-- Biblioteca para ler Excel -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
-  <style>
-    body { font-family: Arial; background:#f4f6f8; padding:30px; }
-    .box { background:white; padding:25px; border-radius:10px; max-width:900px; margin:auto; }
-    h1 { margin-top:0; }
-    input, button { padding:10px; margin:5px 0; }
-    button { background:#0078d4; color:white; border:0; cursor:pointer; }
-    table { border-collapse:collapse; width:100%; margin-top:20px; }
-    th, td { border:1px solid #ddd; padding:8px; text-align:center; }
-    th { background:#0078d4; color:white; }
-  </style>
+<style>
+body { font-family: Arial; background:#f4f6f8; padding:30px; }
+.box { background:white; padding:25px; border-radius:10px; max-width:900px; margin:auto; }
+h1 { margin-top:0; }
+input, button { padding:10px; margin:5px 0; }
+button { background:#0078d4; color:white; border:0; cursor:pointer; }
+table { border-collapse:collapse; width:100%; margin-top:20px; }
+th, td { border:1px solid #ddd; padding:8px; text-align:center; }
+th { background:#0078d4; color:white; }
+</style>
 </head>
 
 <body>
@@ -37,8 +36,6 @@ Valor por hora:
 </div>
 
 <script>
-
-let dadosFinal = [];
 
 function tempoMin(t){
   if(!t) return null;
@@ -69,6 +66,14 @@ function calcularDia(txt){
   return total/60;
 }
 
+// 🔥 NOVO: converter para horas e minutos
+function formatarHorasMinutos(horasDecimal){
+  let horas = Math.floor(horasDecimal);
+  let minutos = Math.round((horasDecimal - horas) * 60);
+
+  return `${horas}h ${minutos}min`;
+}
+
 function ler(){
 
   const file = document.getElementById("arquivo").files[0];
@@ -88,7 +93,7 @@ function ler(){
     const ws = wb.Sheets[wb.SheetNames[0]];
     const linhas = XLSX.utils.sheet_to_json(ws, {header:1});
 
-    let resultadoHTML = "<table><tr><th>Funcionário</th><th>Horas</th><th>Total</th></tr>";
+    let html = "<table><tr><th>Funcionário</th><th>Horas</th><th>Total</th></tr>";
 
     for(let i=0;i<linhas.length;i++){
 
@@ -114,9 +119,9 @@ function ler(){
         if(totalHoras > 0){
           let total = totalHoras * valorHora;
 
-          resultadoHTML += `<tr>
+          html += `<tr>
             <td>${nome}</td>
-            <td>${totalHoras.toFixed(2)}</td>
+            <td>${formatarHorasMinutos(totalHoras)}</td>
             <td>R$ ${total.toFixed(2)}</td>
           </tr>`;
         }
@@ -124,8 +129,8 @@ function ler(){
       }
     }
 
-    resultadoHTML += "</table>";
-    document.getElementById("resultado").innerHTML = resultadoHTML;
+    html += "</table>";
+    document.getElementById("resultado").innerHTML = html;
 
   };
 
@@ -135,4 +140,4 @@ function ler(){
 </script>
 
 </body>
-</html> 
+</html>
