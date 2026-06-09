@@ -355,23 +355,25 @@ function tempoMin(t){
 function calcularDia(txt){
   if(!txt) return 0;
 
-  let horas = String(txt)
-    .split(/\s+/)
-    .filter(x => x.match(/\d{1,2}:\d{2}/));
+  let horas = String(txt).match(/\d{1,2}:\d{2}/g) || [];
 
-  let total = 0;
+  let totalMinutos = 0;
 
   for(let i = 0; i + 1 < horas.length; i += 2){
-    let e = tempoMin(horas[i]);
-    let s = tempoMin(horas[i + 1]);
 
-    if(e == null || s == null) continue;
-    if(s < e) s += 1440;
+    let entrada = tempoMin(horas[i]);
+    let saida = tempoMin(horas[i + 1]);
 
-    total += (s - e);
+    if(entrada == null || saida == null) continue;
+
+    if(saida < entrada){
+      saida += 1440;
+    }
+
+    totalMinutos += (saida - entrada);
   }
 
-  return total / 60;
+  return totalMinutos / 60;
 }
 
 function formatarHorasMinutos(horasDecimal){
