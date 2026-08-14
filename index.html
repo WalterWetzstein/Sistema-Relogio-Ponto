@@ -115,7 +115,7 @@
 
   .grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 20px;
     margin-bottom: 24px;
   }
@@ -128,7 +128,8 @@
   }
 
   input[type="file"],
-  input[type="number"] {
+  input[type="number"],
+  select {
     width: 100%;
     padding: 14px;
     border: 1px solid #d1d5db;
@@ -152,6 +153,47 @@
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
+  }
+
+  .configuracoes {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 18px;
+    margin: 0 0 24px;
+    background: #f8fafc;
+    border: 1px solid var(--borda);
+    border-radius: 14px;
+  }
+
+  .configuracoes small {
+    display: block;
+    color: var(--cinza);
+    margin-top: 6px;
+    line-height: 1.35;
+  }
+
+  .tabela-container { overflow-x: auto; }
+
+  .tag {
+    display: inline-block;
+    margin: 2px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #eef2f7;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .tag-especial { background: #fff4d6; color: #854d0e; }
+
+  .aviso {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #fff7ed;
+    color: #9a3412;
+    font-weight: normal;
   }
 
   button {
@@ -275,6 +317,7 @@
     .topo { align-items: flex-start; flex-direction: column; }
     .logo { max-width: 280px; }
     .card { padding: 24px; }
+    .configuracoes { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -290,7 +333,7 @@
   <div class="hero">
     <section class="card">
       <h1>Cálculo de Ponto</h1>
-      <p class="subtitulo">Envie a planilha do relógio de ponto, informe o valor por hora e veja automaticamente o total a pagar por funcionário.</p>
+      <p class="subtitulo">Envie a planilha do relógio de ponto e calcule o pagamento por hora ou por diária, com adicionais automáticos para fins de semana e feriados de Curitiba.</p>
 
       <div class="info-horario">
         <b>Horário normal:</b> 08:00–12:00 e 13:30–18:00
@@ -303,8 +346,24 @@
         </div>
 
         <div>
-          <label>Valor por hora (R$)</label>
-          <input type="number" id="valorHora" value="20" step="0.01">
+          <label for="tipoCalculo">Forma de pagamento</label>
+          <select id="tipoCalculo" onchange="atualizarTipoCalculo()">
+            <option value="hora">Por hora</option>
+            <option value="dia">Por dia</option>
+          </select>
+        </div>
+
+        <div>
+          <label id="labelValorBase" for="valorBase">Valor por hora (R$)</label>
+          <input type="number" id="valorBase" value="20" min="0.01" step="0.01">
+        </div>
+      </div>
+
+      <div class="configuracoes">
+        <div>
+          <label for="adicionalExtra">Adicional de hora extra (%)</label>
+          <input type="number" id="adicionalExtra" value="100" min="0" step="1">
+          <small>Aplicado automaticamente ao trabalho em sábados, domingos e feriados de Curitiba.</small>
         </div>
       </div>
 
@@ -331,6 +390,10 @@
           <b id="totalHorasResumo">0h 0min</b>
         </div>
         <div class="status-item">
+          <span>Dias trabalhados</span>
+          <b id="totalDiasResumo">0</b>
+        </div>
+        <div class="status-item">
           <span>Total geral</span>
           <b id="totalGeralResumo">R$ 0,00</b>
         </div>
@@ -342,170 +405,281 @@
 </main>
 
 <script>
+const UM_DIA = 24 * 60 * 60 * 1000;
+
+function textoSeguro(valor){
+  return String(valor ?? "").replace(/[&<>'"]/g, caractere => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+  })[caractere]);
+}
+
+function dataUTC(ano, mes, dia){
+  return new Date(Date.UTC(ano, mes - 1, dia));
+}
+
+function chaveData(data){
+  return data.toISOString().slice(0, 10);
+}
+
+function adicionarDias(data, dias){
+  return new Date(data.getTime() + dias * UM_DIA);
+}
+
+function formatarData(data){
+  return new Intl.DateTimeFormat("pt-BR", {timeZone: "UTC"}).format(data);
+}
+
+function calcularPascoa(ano){
+  const a = ano % 19;
+  const b = Math.floor(ano / 100);
+  const c = ano % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return dataUTC(ano, mes, dia);
+}
+
+function feriadosCuritiba(ano){
+  const feriados = new Map();
+  const adicionar = (mes, dia, nome) => feriados.set(chaveData(dataUTC(ano, mes, dia)), nome);
+
+  adicionar(1, 1, "Confraternização Universal");
+  adicionar(4, 21, "Tiradentes");
+  adicionar(5, 1, "Dia do Trabalho");
+  adicionar(9, 7, "Independência do Brasil");
+  adicionar(9, 8, "Nossa Senhora da Luz dos Pinhais");
+  adicionar(10, 12, "Nossa Senhora Aparecida");
+  adicionar(11, 2, "Finados");
+  adicionar(11, 15, "Proclamação da República");
+  adicionar(11, 20, "Consciência Negra");
+  adicionar(12, 25, "Natal");
+
+  const pascoa = calcularPascoa(ano);
+  feriados.set(chaveData(adicionarDias(pascoa, -2)), "Sexta-feira da Paixão");
+  feriados.set(chaveData(adicionarDias(pascoa, 60)), "Corpus Christi");
+  return feriados;
+}
+
 function tempoMin(t){
   if(!t) return null;
-  let p = String(t).split(":");
+  const p = String(t).split(":");
   if(p.length < 2) return null;
-  let h = parseInt(p[0]);
-  let m = parseInt(p[1]);
-  if(isNaN(h) || isNaN(m)) return null;
+  const h = parseInt(p[0], 10);
+  const m = parseInt(p[1], 10);
+  if(isNaN(h) || isNaN(m) || h > 23 || m > 59) return null;
   return h * 60 + m;
 }
 
 function calcularDia(txt){
-  if(!txt) return 0;
-
-  let horas = String(txt).match(/\d{1,2}:\d{2}/g) || [];
-
+  const batidas = String(txt || "").match(/\d{1,2}:\d{2}/g) || [];
   let totalMinutos = 0;
 
-  for(let i = 0; i + 1 < horas.length; i += 2){
-
-    let entrada = tempoMin(horas[i]);
-    let saida = tempoMin(horas[i + 1]);
-
+  for(let i = 0; i + 1 < batidas.length; i += 2){
+    const entrada = tempoMin(batidas[i]);
+    let saida = tempoMin(batidas[i + 1]);
     if(entrada == null || saida == null) continue;
-
-    if(saida < entrada){
-      saida += 1440;
-    }
-
-    totalMinutos += (saida - entrada);
+    if(saida < entrada) saida += 1440;
+    totalMinutos += saida - entrada;
   }
 
-  return totalMinutos / 60;
+  return {minutos: totalMinutos, batidas, incompleto: batidas.length % 2 !== 0};
 }
 
-function formatarHorasMinutos(horasDecimal){
-  let horas = Math.floor(horasDecimal);
-  let minutos = Math.round((horasDecimal - horas) * 60);
+function obterPeriodo(linhas){
+  const texto = linhas.flat().map(String).join(" ");
+  const periodo = texto.match(/(\d{4})-(\d{2})-(\d{2})\s*[~–-]\s*(\d{4})-(\d{2})-(\d{2})/);
+  if(!periodo) return null;
+  return {
+    inicio: dataUTC(+periodo[1], +periodo[2], +periodo[3]),
+    fim: dataUTC(+periodo[4], +periodo[5], +periodo[6])
+  };
+}
 
-  if(minutos === 60){
-    horas += 1;
-    minutos = 0;
+function mapearDatas(cabecalhoDias, periodo){
+  const datas = new Map();
+  let dataAtual = periodo.inicio;
+
+  for(let coluna = 0; coluna < cabecalhoDias.length && dataAtual <= periodo.fim; coluna++){
+    const diaPlanilha = parseInt(cabecalhoDias[coluna], 10);
+    if(diaPlanilha === dataAtual.getUTCDate()){
+      datas.set(coluna, dataAtual);
+      dataAtual = adicionarDias(dataAtual, 1);
+    }
   }
+  return datas;
+}
 
+function obterNome(linha){
+  for(let coluna = 0; coluna < linha.length; coluna++){
+    const valor = String(linha[coluna]);
+    const nomeNaCelula = valor.match(/nome\s*:\s*(.+)/i);
+    if(nomeNaCelula?.[1]) return nomeNaCelula[1].trim();
+    if(/^nome\s*:?$/i.test(valor.trim())) return String(linha[coluna + 1] || "Funcionário").trim();
+  }
+  return "Funcionário";
+}
+
+function adicionalDoDia(data, feriados, adicionalExtra){
+  const feriado = feriados.get(chaveData(data));
+  const diaSemana = data.getUTCDay();
+  const motivos = [];
+  if(diaSemana === 6) motivos.push("sábado");
+  if(diaSemana === 0) motivos.push("domingo");
+  if(feriado) motivos.push(feriado);
+  if(motivos.length) return {percentual: adicionalExtra, descricao: motivos.join(" e "), tipo: "Hora extra"};
+  return {percentual: 0, descricao: "Dia útil", tipo: "Normal"};
+}
+
+function formatarHorasMinutos(minutosTotais){
+  const horas = Math.floor(minutosTotais / 60);
+  const minutos = Math.round(minutosTotais % 60);
   return `${horas}h ${minutos}min`;
 }
 
 function formatarDinheiro(valor){
-  return valor.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  });
+  return valor.toLocaleString("pt-BR", {style: "currency", currency: "BRL"});
+}
+
+function atualizarTipoCalculo(){
+  const porDia = document.getElementById("tipoCalculo").value === "dia";
+  document.getElementById("labelValorBase").textContent = porDia ? "Valor da diária (R$)" : "Valor por hora (R$)";
 }
 
 function limpar(){
   document.getElementById("arquivo").value = "";
-  document.getElementById("mensagem").innerHTML = "";
+  document.getElementById("mensagem").textContent = "";
   document.getElementById("resultado").innerHTML = "";
-  document.getElementById("qtdFuncionarios").innerHTML = "0";
-  document.getElementById("totalHorasResumo").innerHTML = "0h 0min";
-  document.getElementById("totalGeralResumo").innerHTML = "R$ 0,00";
+  document.getElementById("qtdFuncionarios").textContent = "0";
+  document.getElementById("totalHorasResumo").textContent = "0h 0min";
+  document.getElementById("totalDiasResumo").textContent = "0";
+  document.getElementById("totalGeralResumo").textContent = "R$ 0,00";
 }
 
 function ler(){
   const file = document.getElementById("arquivo").files[0];
-  const valorHora = parseFloat(document.getElementById("valorHora").value);
+  const tipoCalculo = document.getElementById("tipoCalculo").value;
+  const valorBase = parseFloat(document.getElementById("valorBase").value);
+  const adicionalExtra = parseFloat(document.getElementById("adicionalExtra").value) || 0;
   const mensagem = document.getElementById("mensagem");
   const resultado = document.getElementById("resultado");
 
-  mensagem.innerHTML = "";
+  mensagem.textContent = "";
   resultado.innerHTML = "";
 
   if(!file){
-    mensagem.innerHTML = "Escolha uma planilha primeiro.";
+    mensagem.textContent = "Escolha uma planilha primeiro.";
     return;
   }
-
-  if(isNaN(valorHora) || valorHora <= 0){
-    mensagem.innerHTML = "Digite um valor por hora válido.";
+  if(isNaN(valorBase) || valorBase <= 0){
+    mensagem.textContent = tipoCalculo === "dia" ? "Digite um valor de diária válido." : "Digite um valor por hora válido.";
     return;
   }
 
   const reader = new FileReader();
-
+  reader.onerror = () => { mensagem.textContent = "Não foi possível ler o arquivo."; };
   reader.onload = function(e){
-    const data = new Uint8Array(e.target.result);
-    const wb = XLSX.read(data, {type:'array'});
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const linhas = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type: "array"});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const linhas = XLSX.utils.sheet_to_json(ws, {header: 1, defval: "", raw: false});
+      const periodo = obterPeriodo(linhas);
 
-    let html = `
-      <table>
-        <tr>
-          <th>Funcionário</th>
-          <th>Horas trabalhadas</th>
-          <th>Total a pagar</th>
-        </tr>
-    `;
+      if(!periodo){
+        mensagem.textContent = "Não encontrei o período de presença na planilha.";
+        return;
+      }
 
-    let encontrou = false;
-    let totalGeral = 0;
-    let totalHorasGeral = 0;
-    let qtdFuncionarios = 0;
+      let html = `<div class="tabela-container"><table><tr>
+        <th>Funcionário</th><th>Dias</th><th>Horas</th><th>Hora extra</th><th>Total a pagar</th>
+      </tr>`;
+      let totalGeral = 0;
+      let totalMinutosGeral = 0;
+      let totalDiasGeral = 0;
+      let qtdFuncionarios = 0;
+      let registrosIncompletos = 0;
 
-    for(let i = 0; i < linhas.length; i++){
-      let linhaTexto = linhas[i].join(" ").toLowerCase();
+      for(let i = 0; i < linhas.length; i++){
+        const linhaTexto = linhas[i].join(" ").toLowerCase();
+        if(!linhaTexto.includes("idusuário") && !linhaTexto.includes("idusuario")) continue;
 
-      if(linhaTexto.includes("idusuário") || linhaTexto.includes("idusuario")){
-        let nome = "Funcionário";
+        const nome = obterNome(linhas[i]);
+        const cabecalhoDias = linhas[i + 1] || [];
+        const batidasPorDia = linhas[i + 2] || [];
+        const datasPorColuna = mapearDatas(cabecalhoDias, periodo);
+        let totalFuncionario = 0;
+        let minutosFuncionario = 0;
+        let diasFuncionario = 0;
+        const especiais = [];
+        const anos = new Map();
 
-        for(let j = 0; j < linhas[i].length; j++){
-          if(String(linhas[i][j]).toLowerCase().includes("nome")){
-            nome = linhas[i][j + 1] || "Funcionário";
+        for(const [coluna, data] of datasPorColuna){
+          const calculoDia = calcularDia(batidasPorDia[coluna]);
+          if(calculoDia.incompleto) registrosIncompletos++;
+          if(calculoDia.minutos <= 0) continue;
+
+          const ano = data.getUTCFullYear();
+          if(!anos.has(ano)) anos.set(ano, feriadosCuritiba(ano));
+          const regra = adicionalDoDia(data, anos.get(ano), adicionalExtra);
+          const multiplicador = 1 + regra.percentual / 100;
+          const valorDia = tipoCalculo === "dia"
+            ? valorBase * multiplicador
+            : (calculoDia.minutos / 60) * valorBase * multiplicador;
+
+          diasFuncionario++;
+          minutosFuncionario += calculoDia.minutos;
+          totalFuncionario += valorDia;
+
+          if(regra.tipo !== "Normal"){
+            especiais.push(`<span class="tag tag-especial" title="${textoSeguro(regra.descricao)}">${formatarData(data)} · Hora extra</span>`);
           }
         }
 
-        let dias = linhas[i + 2] || [];
-        let totalHoras = 0;
-
-        for(let d = 0; d < dias.length; d++){
-          totalHoras += calcularDia(dias[d]);
-        }
-
-        if(totalHoras > 0){
-          encontrou = true;
+        if(diasFuncionario > 0){
           qtdFuncionarios++;
-          totalHorasGeral += totalHoras;
-
-          let total = totalHoras * valorHora;
-          totalGeral += total;
-
-          html += `
-            <tr>
-              <td class="nome">${nome}</td>
-              <td class="horas">${formatarHorasMinutos(totalHoras)}</td>
-              <td class="total">${formatarDinheiro(total)}</td>
-            </tr>
-          `;
+          totalDiasGeral += diasFuncionario;
+          totalMinutosGeral += minutosFuncionario;
+          totalGeral += totalFuncionario;
+          html += `<tr>
+            <td class="nome">${textoSeguro(nome)}</td>
+            <td>${diasFuncionario}</td>
+            <td class="horas">${formatarHorasMinutos(minutosFuncionario)}</td>
+            <td>${especiais.join("") || '<span class="tag">Nenhum</span>'}</td>
+            <td class="total">${formatarDinheiro(totalFuncionario)}</td>
+          </tr>`;
         }
       }
+
+      html += `<tr class="linha-total"><th>Total geral</th><th>${totalDiasGeral}</th>
+        <th>${formatarHorasMinutos(totalMinutosGeral)}</th><th>—</th><th>${formatarDinheiro(totalGeral)}</th></tr></table></div>`;
+
+      if(!qtdFuncionarios){
+        mensagem.textContent = "Não encontrei registros completos nessa planilha.";
+        return;
+      }
+
+      if(registrosIncompletos){
+        html += `<div class="aviso">Atenção: foram encontradas ${registrosIncompletos} jornada(s) com número ímpar de batidas. As batidas sem par não entraram no cálculo.</div>`;
+      }
+
+      document.getElementById("qtdFuncionarios").textContent = qtdFuncionarios;
+      document.getElementById("totalHorasResumo").textContent = formatarHorasMinutos(totalMinutosGeral);
+      document.getElementById("totalDiasResumo").textContent = totalDiasGeral;
+      document.getElementById("totalGeralResumo").textContent = formatarDinheiro(totalGeral);
+      mensagem.textContent = `Cálculo por ${tipoCalculo === "dia" ? "diária" : "hora"} realizado com sucesso.`;
+      resultado.innerHTML = html;
+    } catch (erro) {
+      console.error(erro);
+      mensagem.textContent = "Não foi possível processar essa planilha. Verifique se o arquivo está no formato correto.";
     }
-
-    html += `
-      <tr class="linha-total">
-        <th>Total geral</th>
-        <th>${formatarHorasMinutos(totalHorasGeral)}</th>
-        <th>${formatarDinheiro(totalGeral)}</th>
-      </tr>
-    `;
-
-    html += "</table>";
-
-    if(!encontrou){
-      mensagem.innerHTML = "Não encontrei registros válidos nessa planilha.";
-      return;
-    }
-
-    document.getElementById("qtdFuncionarios").innerHTML = qtdFuncionarios;
-    document.getElementById("totalHorasResumo").innerHTML = formatarHorasMinutos(totalHorasGeral);
-    document.getElementById("totalGeralResumo").innerHTML = formatarDinheiro(totalGeral);
-
-    mensagem.innerHTML = "Cálculo realizado com sucesso.";
-    resultado.innerHTML = html;
   };
-
   reader.readAsArrayBuffer(file);
 }
 </script>
