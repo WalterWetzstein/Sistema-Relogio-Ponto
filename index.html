@@ -425,7 +425,7 @@
 
       <div class="info-horario">
         <b>Horário de referência:</b> 08:00–12:00 e 13:00–18:00<br>
-        <small>O sistema soma cada par de entrada e saída. Dias com exatamente 3 batidas não entram no cálculo.</small>
+        <small>O sistema soma cada par de entrada e saída. Dias com quantidade ímpar de batidas não entram no cálculo.</small>
       </div>
 
       <div class="passo">
@@ -733,7 +733,7 @@ function ler(){
 
         for(const [coluna, data] of datasPorColuna){
           const calculoDia = calcularDia(batidasPorDia[coluna]);
-          if(calculoDia.batidas.length === 3){
+          if(calculoDia.batidas.length % 2 !== 0){
             registrosIncompletos.push({nome, data, batidas: calculoDia.batidas});
             continue;
           }
@@ -783,7 +783,7 @@ function ler(){
         const detalhes = registrosIncompletos.map(item =>
           `<li><b>${textoSeguro(item.nome)}</b>, dia ${formatarData(item.data)}: ${textoSeguro(item.batidas.join(", "))}</li>`
         ).join("");
-        html += `<div class="aviso"><b>Confira estes horários:</b><br>Os registros abaixo possuem exatamente 3 batidas. O dia inteiro não entrou no cálculo.<ul>${detalhes}</ul></div>`;
+        html += `<div class="aviso"><b>Confira estes horários:</b><br>Os registros abaixo possuem uma quantidade ímpar de batidas. O dia inteiro não entrou no cálculo.<ul>${detalhes}</ul></div>`;
       }
 
       document.getElementById("qtdFuncionarios").textContent = qtdFuncionarios;
